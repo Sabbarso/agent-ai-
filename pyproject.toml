@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rpe"
+version = "0.1.0"
+description = "Research Paper Explorer: generative-AI exploration of the arXiv dataset"
+requires-python = ">=3.11"
+readme = "README.md"
+
+[project.scripts]
+rpe = "rpe.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+# SIM905: word lists written as one "...".split() string are easier to read and edit.
+ignore = ["SIM905"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

@@ -1,0 +1,22 @@
+# Data (only .gitkeep files are tracked)
+data/**
+!data/**/
+!data/**/.gitkeep
+
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+
+# Notebooks / editors
+.ipynb_checkpoints/
+.vscode/
+.idea/

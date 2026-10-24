@@ -1,0 +1,46 @@
+# --- Core / data (phase 1) ---
+orjson>=3.9
+pandas>=2.1
+pyarrow>=14.0
+pyyaml>=6.0            # lecture de config.yaml (non listé dans la stack, indispensable)
+python-dotenv>=1.0
+pydantic>=2.5
+typer>=0.12
+tqdm>=4.66
+numpy>=1.26
+
+# --- Index & retrieval (phase 2) ---
+sentence-transformers>=2.7
+chromadb>=0.5
+rank-bm25>=0.2.2
+
+# --- LLM (phase 3) ---
+openai>=1.30           # client compatible OpenAI (Groq, Gemini, OpenAI, Ollama)
+
+# --- Topics (phase 4) ---
+bertopic>=0.16
+umap-learn>=0.5
+hdbscan>=0.8.33
+plotly>=5.20
+
+# --- Graph (phase 5) ---
+networkx>=3.2
+pyvis>=0.3.2
+
+# --- Agent (phase 6) ---
+langgraph>=0.2
+langchain-core>=0.3
+arxiv>=2.1
+
+# --- PDF (phase 7) ---
+pymupdf>=1.24
+
+# --- Rapports PDF (Chat RAG, état de l'art) ---
+reportlab>=4.0         # export PDF (non listé dans la stack : demandé pour les rapports)
+
+# --- UI (phase 8) ---
+streamlit>=1.35
+
+# --- Dev ---
+pytest>=8.0
+ruff>=0.5

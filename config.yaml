@@ -1,0 +1,84 @@
+data:
+  raw_path: data/raw/arxiv-metadata-oai-snapshot.json
+  processed_dir: data/processed
+  categories: ["cs.CL"]        # un papier est gardé si au moins une de ses catégories y figure ("cs.*" accepté)
+  start_date: "2023-01-01"
+  end_date: null
+  max_papers: 20000            # échantillon reproductible (seed 42) si dépassé
+  sample_dev: 1000             # mode --dev pour itérer vite
+  seed: 42
+embeddings:
+  batch_size: 64
+  checkpoint_every: 2048       # papiers par fichier de checkpoint (reprise)
+  query_instruction: "Represent this sentence for searching relevant passages: "
+index:
+  dir: data/index              # data/index_dev en mode --dev
+extraction:
+  max_papers: 2000             # l'extraction LLM est coûteuse : limiter
+  batch_size: 10               # résumés par appel LLM
+  cache_path: data/processed/extractions.jsonl
+retrieval:
+  top_k: 10
+  rrf_k: 60
+  candidates: 100              # résultats par retriever avant fusion
+compare:                       # comparaison des papiers cités (page Chat)
+  max_papers: 8
+  cache_dir: data/cache/compare
+  pdf_chars: 3000              # extrait PDF max par papier
+llm:
+  timeout: 300                 # généreux pour les modèles locaux sur CPU (Ollama)
+  max_retries: 4
+  backoff_seconds: 2.0
+  temperature: 0.0
+  max_tokens: 2048
+  max_parse_retries: 2         # nouvel essai si le JSON est invalide
+  json_mode: true
+  cache_dir: data/cache/llm
+topics:
+  n_neighbors: 15
+  n_components: 5
+  min_cluster_size: 40
+  min_samples: 10
+  dev_min_cluster_size: 8
+  label_with_llm: true
+trends:
+  window_months: 6
+  min_volume: 20               # volume minimum pour émergent / déclin
+  dev_min_volume: 5            # idem en mode --dev (corpus 20x plus petit)
+  emerging_growth: 0.5         # +50 % de part relative
+  declining_growth: -0.3       # -30 % de part relative
+  drop_last_month: true        # le dernier mois du dump est incomplet
+graph:
+  path: data/graph/kg.graphml
+  aliases_path: data/processed/aliases.yaml
+  fuzzy_threshold: 0.92
+  max_coauthors_per_paper: 30
+agent:
+  max_iterations: 6
+  sota_max_papers: 25
+  sota_min_papers: 8
+  sota_max_iterations: 2
+gaps:
+  min_task_papers: 8
+  min_method_papers: 8
+  max_cooccurrence: 1
+  top_n: 10
+digest:
+  categories: ["cs.CL", "cs.AI", "cs.LG"]
+  max_results: 50
+  output_dir: data/digests
+pdfs:
+  max_pdfs: 300
+  delay_seconds: 3             # respecter les serveurs arXiv
+  dir: data/pdfs
+  chunk_chars: 1500
+  chunk_overlap: 200
+  demo_queries:
+    - retrieval-augmented generation
+    - LLM agents tool use
+    - machine translation low-resource
+    - hallucination detection
+    - question answering SQuAD
+eval:
+  datasets_dir: src/rpe/eval/datasets
+  report_path: eval/report.md
