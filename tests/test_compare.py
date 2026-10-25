@@ -1,5 +1,4 @@
 from rpe.llm.client import LLMClient
-from rpe.llm.schemas import ClaimedResult, PaperExtraction
 from rpe.rag.compare import (
     NOT_MENTIONED,
     add_synthesis,
@@ -57,29 +56,6 @@ def test_missing_fields_are_not_mentioned(paper_store):
     c = res.comparisons[0]
     assert c.results == NOT_MENTIONED and c.limitations == [NOT_MENTIONED]
     assert c.method == "Back-translation." and c.source == "abstract"
-
-
-def test_extractions_jsonl_avoids_llm_call(paper_store):
-    ext = {
-        "2302.00002": PaperExtraction(
-            tasks=["machine translation"],
-            methods=["back-translation"],
-            metrics=["BLEU"],
-            claimed_results=[ClaimedResult(metric="BLEU", dataset="WMT", value="+2.1")],
-        )
-    }
-    fake = ScriptedLLM(lambda m: {"papers": []})
-    res = compare_papers(
-        "translation",
-        ["2302.00002"],
-        paper_store,
-        LLMClient("m", completion_fn=fake),
-        extractions=ext,
-    )
-    assert fake.calls == []
-    c = res.comparisons[0]
-    assert c.source == "extraction" and c.results == "BLEU on WMT +2.1"
-    assert c.datasets == [NOT_MENTIONED] and c.limitations == [NOT_MENTIONED]
 
 
 def test_single_batch_call_and_disk_cache(paper_store, tmp_path):

@@ -389,69 +389,6 @@ def build_pdf(
     return buf.getvalue()
 
 
-# ------------------------------------------------------- Markdown -> PDF
-
-
-def markdown_flowables(markdown: str) -> list:
-    """Minimal Markdown (#, ##, ###, -, paragraphs, **bold**) to ReportLab flowables."""
-    st = styles()
-    out: list = []
-    para: list[str] = []
-    bullets: list[str] = []
-
-    def flush() -> None:
-        if para:
-            out.append(Paragraph(rl_text(" ".join(para)), st["body"]))
-            para.clear()
-        if bullets:
-            out.append(
-                ListFlowable(
-                    [ListItem(Paragraph(rl_text(b), st["body"]), leftIndent=12) for b in bullets],
-                    bulletType="bullet",
-                    start="•",
-                    bulletFontName=fonts()[0],
-                )
-            )
-            bullets.clear()
-
-    for line in markdown.splitlines():
-        s = line.strip()
-        heading = re.match(r"^(#{1,3})\s+(.*)$", s)
-        if heading:
-            flush()
-            level = {1: "h1", 2: "h2", 3: "h3"}[len(heading.group(1))]
-            out.append(Paragraph(rl_text(heading.group(2), links=False), st[level]))
-        elif re.match(r"^[-*]\s+", s):
-            if para:
-                flush()
-            bullets.append(re.sub(r"^[-*]\s+", "", s))
-        elif not s:
-            flush()
-        else:
-            if bullets:
-                flush()
-            para.append(s)
-    flush()
-    return out
-
-
-def build_markdown_pdf(title: str, markdown: str, generated_at: datetime | None = None) -> bytes:
-    """Same layout for a Markdown document (e.g. the state-of-the-art review + References)."""
-    st = styles()
-    buf = io.BytesIO()
-    doc = _doc(buf, title)
-    when = generated_at or datetime.now()
-    story: list = [
-        Spacer(1, 5 * cm),
-        Paragraph(escape(title), st["title"]),
-        Paragraph(f"Généré le {when:%d/%m/%Y à %H:%M}", st["subtitle"]),
-        PageBreak(),
-        *markdown_flowables(markdown),
-    ]
-    doc.build(story)
-    return buf.getvalue()
-
-
 def report_filename(question: str, when: datetime | None = None, n_words: int = 4) -> str:
     """rapport_<question-keywords>_<date>.pdf"""
     from rpe.index.bm25 import tokenize

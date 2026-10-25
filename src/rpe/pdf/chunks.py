@@ -1,4 +1,4 @@
-"""Chroma collection "chunks" (full-text passages) + CITES edges from references."""
+"""Chroma collection "chunks": full-text passages of the downloaded PDFs, by section."""
 
 from __future__ import annotations
 
@@ -11,9 +11,8 @@ from rpe.config import Config
 from rpe.index.embed import Embedder
 from rpe.index.hybrid import make_embedder
 from rpe.index.vector_store import ChromaVectorStore
-from rpe.kg.graph_store import GraphStore, node_id
 from rpe.pdf.download import pdf_dir, pdf_path
-from rpe.pdf.parse import chunk_sections, extract_arxiv_references, parse_pdf
+from rpe.pdf.parse import chunk_sections, parse_pdf
 from rpe.rag.qa import ContextItem
 
 logger = logging.getLogger(__name__)
@@ -74,15 +73,13 @@ class ChunkStore:
         return n
 
 
-def index_pdfs(
-    cfg: Config, dev: bool = False, graph: GraphStore | None = None, progress: bool = True
-) -> dict[str, int]:
-    """Parse every downloaded PDF of the corpus, index its chunks, add CITES edges."""
+def index_pdfs(cfg: Config, dev: bool = False, progress: bool = True) -> dict[str, int]:
+    """Parse every downloaded PDF of the corpus and index its chunks (resumable)."""
     from rpe.data.store import PaperStore
 
     papers = PaperStore.load(cfg, dev)
     store = ChunkStore(cfg, dev)
-    stats = {"papers": 0, "chunks": 0, "skipped": 0, "failed": 0, "cites": 0}
+    stats = {"papers": 0, "chunks": 0, "skipped": 0, "failed": 0}
     for aid in tqdm(papers.ids, desc="Index PDFs", disable=not progress):
         pdf: Path = pdf_path(cfg, aid)
         if not pdf.exists():
@@ -93,11 +90,6 @@ def index_pdfs(
             logger.warning("Cannot parse %s: %s", pdf, exc)
             stats["failed"] += 1
             continue
-        if graph is not None:
-            for ref in extract_arxiv_references(sections, aid):
-                if ref in papers:
-                    graph.add_edge(node_id("Paper", aid), node_id("Paper", ref), "CITES")
-                    stats["cites"] += 1
         if store.has_chunks(aid):
             stats["skipped"] += 1
             continue

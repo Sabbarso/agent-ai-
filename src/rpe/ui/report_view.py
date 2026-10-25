@@ -6,11 +6,10 @@ from typing import Any
 
 import streamlit as st
 
-from rpe.agent.tools import Resources
-from rpe.kg.extract import cache_path, load_cache
 from rpe.pdf.reader import COMPARE_SECTIONS, pdf_excerpt
 from rpe.rag.compare import ComparisonResult
 from rpe.reports.chat_report import ChatReport, build_chat_report, report_from_comparison
+from rpe.resources import Resources
 
 
 def make_report(res: Resources, msg: dict[str, Any]) -> ChatReport:
@@ -29,7 +28,6 @@ def make_report(res: Resources, msg: dict[str, Any]) -> ChatReport:
         msg.get("citations", []),
         res.papers,
         res.llm,
-        extractions=load_cache(cache_path(cfg, res.dev)),
         pdf_text=pdf_text,
         cache_dir=cfg.path(cfg.compare.cache_dir),
         max_papers=cfg.compare.max_papers,

@@ -1,4 +1,4 @@
-"""PDF text extraction (PyMuPDF), section splitting, chunking, arXiv reference extraction."""
+"""PDF text extraction (PyMuPDF), section splitting and chunking."""
 
 from __future__ import annotations
 
@@ -6,8 +6,6 @@ import json
 import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
-
-from rpe.rag.citations import normalize_id
 
 CANONICAL_SECTIONS: list[tuple[str, str]] = [
     ("Abstract", r"abstract"),
@@ -25,11 +23,6 @@ _HEADING_RE = re.compile(
     r"^\s*(?:(?:\d+|[IVX]+|[A-H])(?:\.\d+)*\.?\s+)?("
     + "|".join(f"(?:{p})" for _, p in CANONICAL_SECTIONS)
     + r")\s*:?\s*$",
-    re.IGNORECASE,
-)
-_ARXIV_REF_RE = re.compile(
-    r"(?:arxiv(?:\.org/(?:abs|pdf)/|\s*:\s*|\s+preprint\s+arxiv\s*:\s*)|abs/)"
-    r"(\d{4}\.\d{4,5}(?:v\d+)?)",
     re.IGNORECASE,
 )
 
@@ -120,15 +113,6 @@ def chunk_sections(
         for piece in chunk_text(s.text, max_chars, overlap):
             out.append(Chunk(f"{arxiv_id}#{len(out)}", arxiv_id, s.name, piece))
     return out
-
-
-def extract_arxiv_references(sections: list[Section], self_id: str | None = None) -> list[str]:
-    """arXiv ids cited in the References section (or the whole text if absent)."""
-    refs = next((s.text for s in sections if s.name == "References"), None)
-    text = refs if refs is not None else " ".join(s.text for s in sections)
-    ids = dict.fromkeys(normalize_id(m) for m in _ARXIV_REF_RE.findall(text))
-    ids.pop(self_id or "", None)
-    return list(ids)
 
 
 def parsed_path(cfg_pdf_dir: Path, arxiv_id: str) -> Path:

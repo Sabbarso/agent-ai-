@@ -7,10 +7,9 @@ from rpe.llm.client import (
     TransientLLMError,
     parse_json,
 )
-from rpe.llm.schemas import PaperExtraction, ReadingSheet
+from rpe.llm.schemas import ComparisonItem
 from rpe.rag.citations import extract_citations, normalize_id, validate_citations
 from rpe.rag.qa import IDK_MESSAGE, answer_question
-from rpe.rag.reading_sheet import generate_reading_sheet, reading_sheet_markdown
 from tests.fakes import ScriptedLLM
 
 
@@ -79,10 +78,10 @@ def test_parse_json_tolerant():
 
 
 def test_structured_retries_on_invalid_json(tmp_path):
-    fake = ScriptedLLM(["not json at all", {"tasks": ["QA"], "contribution_type": "New Method"}])
+    fake = ScriptedLLM(["not json at all", {"arxiv_id": "2301.00001", "datasets": ["SQuAD"]}])
     llm = make_llm(fake, tmp_path)
-    out = llm.structured("extract", PaperExtraction)
-    assert out.tasks == ["QA"] and out.contribution_type == "new_method"
+    out = llm.structured("extract", ComparisonItem)
+    assert out.datasets == ["SQuAD"] and out.arxiv_id == "2301.00001"
     assert llm.stats.n_parse_failures == 1 and len(fake.calls) == 2
     # The corrective message contains the error and the previous reply.
     assert fake.calls[1][-2]["content"] == "not json at all"
@@ -91,7 +90,7 @@ def test_structured_retries_on_invalid_json(tmp_path):
 def test_structured_gives_up(tmp_path):
     llm = make_llm(ScriptedLLM(["bad"]), tmp_path, max_parse_retries=1)
     with pytest.raises(StructuredOutputError):
-        llm.structured("x", PaperExtraction)
+        llm.structured("x", ComparisonItem)
 
 
 def test_cache_avoids_redundant_calls(tmp_path):
@@ -128,17 +127,16 @@ def test_retry_exhausted():
     assert llm.stats.n_calls == 3
 
 
-def test_extraction_schema_cleaning():
-    e = PaperExtraction.model_validate(
+def test_comparison_schema_cleaning():
+    e = ComparisonItem.model_validate(
         {
-            "tasks": ["QA", " qa ", None, ""],
-            "datasets": "SQuAD",
-            "contribution_type": "weird",
-            "claimed_results": [{"metric": "F1", "value": 91.2}, "junk"],
+            "arxiv_id": "2301.00001",
+            "datasets": ["SQuAD", " squad ", None, ""],
+            "metrics": "F1",
+            "results": ["EM 45", "F1 60"],
         }
     )
-    assert e.tasks == ["QA"] and e.datasets == ["SQuAD"] and e.contribution_type == "other"
-    assert e.claimed_results[0].value == "91.2" and len(e.claimed_results) == 1
+    assert e.datasets == ["SQuAD"] and e.metrics == ["F1"] and e.results == "EM 45 F1 60"
 
 
 # ------------------------------------------------------------------ RAG
@@ -183,32 +181,8 @@ def test_rag_paper_scope(searcher):
         answer_question("q", searcher, make_llm(ScriptedLLM(["x"])), scope="0000.0000")
 
 
-# -------------------------------------------------------- reading sheet
-
-
-SHEET = {
-    "summary": "A RAG system.",
-    "contributions": ["retriever + generator"],
-    "method": "Dense retrieval.",
-    "results": "Better QA.",
-    "limitations": ["English only (inferred)"],
-    "comprehension_questions": ["Q1?", "Q2?", "Q3?", "Q4?"],
-}
-
-
-def test_reading_sheet_fr(paper_store):
-    fake = ScriptedLLM([SHEET])
-    paper = paper_store.get("2301.00001")
-    sheet = generate_reading_sheet(paper, make_llm(fake), lang="fr", full_text="1 Introduction ...")
-    assert isinstance(sheet, ReadingSheet) and len(sheet.comprehension_questions) == 3
-    prompt = fake.calls[0][-1]["content"]
-    assert "French" in prompt and "FULL-TEXT" in prompt
-    md = reading_sheet_markdown(sheet, paper, lang="fr")
-    assert "## Questions de compréhension" in md and "[arXiv:2301.00001]" in md
-
-
-def test_reading_sheet_requires_three_questions(paper_store):
-    bad = dict(SHEET, comprehension_questions=["only one?"])
-    llm = make_llm(ScriptedLLM([bad]), max_parse_retries=0)
-    with pytest.raises(StructuredOutputError):
-        generate_reading_sheet(paper_store.get("2301.00001"), llm)
+def test_rag_context_keeps_top_5_after_fusion(searcher):
+    fake = ScriptedLLM(["Answer [arXiv:2301.00001]"])
+    res = answer_question("question answering retrieval translation", searcher, make_llm(fake))
+    assert len(res.contexts) == 5  # 6 papers in the fake corpus, 5 kept after RRF fusion
+    assert fake.calls[0][-1]["content"].count("] arXiv:") == 5  # numbered context blocks

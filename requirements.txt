@@ -1,46 +1,30 @@
-# --- Core / data (phase 1) ---
-orjson>=3.9
+# --- Données ---
+orjson>=3.9            # lecture rapide du dump JSON Lines
 pandas>=2.1
-pyarrow>=14.0
-pyyaml>=6.0            # lecture de config.yaml (non listé dans la stack, indispensable)
-python-dotenv>=1.0
-pydantic>=2.5
-typer>=0.12
-tqdm>=4.66
+pyarrow>=14.0          # stockage Parquet
 numpy>=1.26
+pyyaml>=6.0            # config.yaml
+python-dotenv>=1.0     # .env
+pydantic>=2.5
+typer>=0.12            # ligne de commande
+tqdm>=4.66
 
-# --- Index & retrieval (phase 2) ---
-sentence-transformers>=2.7
-chromadb>=0.5
-rank-bm25>=0.2.2
+# --- Recherche ---
+sentence-transformers>=2.7   # embeddings (BAAI/bge-small-en-v1.5)
+chromadb>=0.5                # base vectorielle
+rank-bm25>=0.2.2             # recherche lexicale
 
-# --- LLM (phase 3) ---
-openai>=1.30           # client compatible OpenAI (Groq, Gemini, OpenAI, Ollama)
+# --- LLM ---
+openai>=1.30           # client compatible OpenAI (Ollama, Groq, Gemini, OpenAI)
+httpx>=0.27            # téléchargement des PDF arXiv
 
-# --- Topics (phase 4) ---
-bertopic>=0.16
-umap-learn>=0.5
-hdbscan>=0.8.33
-plotly>=5.20
+# --- PDF ---
+pymupdf>=1.24          # extraction du texte des PDF
+reportlab>=4.0         # génération des rapports PDF
 
-# --- Graph (phase 5) ---
-networkx>=3.2
-pyvis>=0.3.2
+# --- Interface ---
+streamlit>=1.40
 
-# --- Agent (phase 6) ---
-langgraph>=0.2
-langchain-core>=0.3
-arxiv>=2.1
-
-# --- PDF (phase 7) ---
-pymupdf>=1.24
-
-# --- Rapports PDF (Chat RAG, état de l'art) ---
-reportlab>=4.0         # export PDF (non listé dans la stack : demandé pour les rapports)
-
-# --- UI (phase 8) ---
-streamlit>=1.35
-
-# --- Dev ---
+# --- Tests et qualité ---
 pytest>=8.0
 ruff>=0.5

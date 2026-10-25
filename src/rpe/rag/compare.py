@@ -1,12 +1,9 @@
 """Structured comparison of the papers cited in a RAG answer (shown under the Chat answer).
 
-Only the ids CITED in the validated answer are compared (max 8, order of appearance).
-Source of each paper's facts, in order:
-  a) the phase-5 LLM extractions (`extractions.jsonl`): no LLM call;
-  b) otherwise the PDF sections Method/Experiments/Results/Conclusion/Limitations if the PDF
-     was downloaded;
-  c) otherwise the abstract.
-All papers of b) and c) are extracted in ONE batched LLM call, cached on disk per arxiv_id.
+Only the ids CITED in the validated answer are compared (max `max_papers`, order of appearance).
+Source of each paper's facts: the PDF sections Method/Experiments/Results/Conclusion/
+Limitations if the PDF was downloaded, otherwise the abstract. All papers are extracted in
+ONE batched LLM call, cached on disk per arxiv_id (no new call for an already seen paper).
 Anti-hallucination: missing facts become "Non mentionné dans le résumé"; results whose
 numbers do not appear in the source text are discarded; the synthesis citations are checked
 with `validate_citations()`. Relevance is a deterministic lexical score w.r.t. the question.
@@ -16,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any, Literal
@@ -27,14 +25,13 @@ from rpe.data.store import PaperStore
 from rpe.index.bm25 import tokenize
 from rpe.llm import prompts
 from rpe.llm.client import LLMClient, LLMError
-from rpe.llm.schemas import ComparisonBatch, ComparisonItem, PaperExtraction
+from rpe.llm.schemas import ComparisonBatch, ComparisonItem
 from rpe.rag.citations import normalize_id, validate_citations
-from rpe.topics.trends import unknown_numbers
 
 logger = logging.getLogger(__name__)
 
 NOT_MENTIONED = "Non mentionné dans le résumé"
-MAX_PAPERS = 8
+MAX_PAPERS = 5
 _EMPTY = {
     "",
     "-",
@@ -52,8 +49,19 @@ _EMPTY = {
 RELEVANCE_ORDER = {"high": 0, "medium": 1, "low": 2}
 RELEVANCE_LABELS = {"high": "élevée", "medium": "moyenne", "low": "peu pertinent"}
 
-Source = Literal["extraction", "abstract", "pdf"]
+Source = Literal["abstract", "pdf"]
 Relevance = Literal["high", "medium", "low"]
+
+
+_NUMBER_RE = re.compile(r"(?<![\w.])[-+]?\d+(?:[.,]\d+)?")
+_CITATION_RE = re.compile(r"\[[^\]]*arXiv[^\]]*\]", re.IGNORECASE)
+
+
+def unknown_numbers(text: str, source: str) -> list[str]:
+    """Numbers in `text` (citations excluded) that do not appear in `source`."""
+    allowed = {n.lstrip("+").replace(",", ".") for n in _NUMBER_RE.findall(source)}
+    found = _NUMBER_RE.findall(_CITATION_RE.sub(" ", text))
+    return sorted({n for n in found if n.lstrip("+").replace(",", ".") not in allowed})
 
 
 def _is_empty(value: Any) -> bool:
@@ -127,27 +135,6 @@ def _meta(paper: Mapping[str, Any], question: str) -> dict[str, Any]:
     }
 
 
-def from_extraction(
-    paper: Mapping[str, Any], ext: PaperExtraction, question: str
-) -> PaperComparison:
-    """Comparison row from the phase-5 extraction (no LLM call)."""
-    results = "; ".join(
-        " ".join(x for x in (r.metric, f"on {r.dataset}" if r.dataset else "", r.value) if x)
-        for r in ext.claimed_results
-        if r.value
-    )
-    return PaperComparison(
-        **_meta(paper, question),
-        problem=f"Addresses {', '.join(ext.tasks)}." if ext.tasks else "",
-        method=", ".join(ext.methods),
-        datasets=ext.datasets,
-        metrics=ext.metrics,
-        results=results,
-        limitations=[],
-        source="extraction",
-    )
-
-
 def from_item(
     paper: Mapping[str, Any],
     item: ComparisonItem | None,
@@ -218,25 +205,19 @@ def compare_papers(
     citations: Iterable[str],
     papers: PaperStore,
     llm: LLMClient | None,
-    extractions: Mapping[str, PaperExtraction] | None = None,
     pdf_text: Callable[[str], str | None] | None = None,
     cache_dir: Path | None = None,
     max_papers: int = MAX_PAPERS,
 ) -> ComparisonResult:
     """Comparison rows of the cited papers (low-relevance papers last)."""
-    extractions = extractions or {}
     cache = ComparisonCache(cache_dir)
     warnings: list[str] = []
     rows: dict[str, PaperComparison] = {}
     todo: list[tuple[Mapping[str, Any], Source, str]] = []
-    pending: dict[str, tuple[Mapping[str, Any], Source, str]] = {}
 
     ids = [i for i in cited_ids(citations, max_papers) if i in papers]
     for aid in ids:
         paper = papers.get(aid) or {}
-        if aid in extractions:
-            rows[aid] = from_extraction(paper, extractions[aid], question)
-            continue
         text = None
         if pdf_text is not None:
             try:
@@ -245,7 +226,6 @@ def compare_papers(
                 logger.warning("PDF excerpt failed for %s: %s", aid, exc)
         source: Source = "pdf" if text else "abstract"
         text = text or paper.get("abstract", "")
-        pending[aid] = (paper, source, text)
         if (cached := cache.get(aid, source)) is not None:
             rows[aid] = from_item(paper, cached, source, text, question)
         else:

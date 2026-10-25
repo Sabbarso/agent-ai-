@@ -6,11 +6,9 @@ import pytest
 pytest.importorskip("reportlab")
 
 from rpe.llm.client import LLMClient  # noqa: E402
-from rpe.llm.schemas import PaperExtraction  # noqa: E402
 from rpe.rag.compare import PaperComparison  # noqa: E402
 from rpe.reports.chat_report import build_chat_report  # noqa: E402
 from rpe.reports.pdf_report import (  # noqa: E402
-    build_markdown_pdf,
     build_pdf,
     clean_latex,
     report_filename,
@@ -74,24 +72,18 @@ def test_eight_long_papers_no_layout_error():
     assert pdf.startswith(b"%PDF") and n_pages(pdf) >= 4
 
 
-def test_markdown_pdf_for_state_of_the_art():
-    md = (
-        "# State of the art\n## Introduction\nRAG [arXiv:2401.00001] is **popular**.\n\n"
-        "## Approaches\n- dense retrieval\n- reranking\n\n## References\n"
-        "- [arXiv:2401.00001] Paper. https://arxiv.org/abs/2401.00001\n"
-    )
-    pdf = build_markdown_pdf("État de l'art — RAG", md)
-    assert pdf.startswith(b"%PDF") and n_pages(pdf) >= 2
-
-
 def test_report_filename():
     name = report_filename("How can retrieval reduce hallucinations?", datetime(2026, 1, 2))
     assert name == "rapport_retrieval-reduce-hallucination_2026-01-02.pdf"
 
 
-def test_chat_report_only_cited_ids_and_extraction_avoids_llm(paper_store):
-    ext = {"2302.00002": PaperExtraction(tasks=["MT"], methods=["back-translation"])}
-    fake = ScriptedLLM(lambda m: "Synthèse [arXiv:2302.00002].")
+def test_chat_report_only_cited_ids_one_batch_call(paper_store):
+    def router(messages):
+        if "EACH paper" in messages[-1]["content"]:
+            return {"papers": [{"arxiv_id": "2302.00002", "method": "Back-translation."}]}
+        return "Synthèse [arXiv:2302.00002]."
+
+    fake = ScriptedLLM(router)
     llm = LLMClient("m", completion_fn=fake)
     rep = build_chat_report(
         "translation",
@@ -99,10 +91,9 @@ def test_chat_report_only_cited_ids_and_extraction_avoids_llm(paper_store):
         ["2302.00002"],
         paper_store,
         llm,
-        extractions=ext,
     )
     assert rep.n_papers == 1 and rep.pdf.startswith(b"%PDF")
-    assert len(fake.calls) == 1  # synthesis only: no extraction call
+    assert len(fake.calls) == 2  # one batched extraction + one synthesis
     assert b"2405.00005" not in rep.pdf  # uncited papers never appear
 
 
@@ -116,10 +107,10 @@ def _chat_message_script(root: str) -> None:
     """Mimics the Chat page's assistant message + the report button."""
     import streamlit as st
 
-    from rpe.agent.tools import Resources
     from rpe.config import Config
     from rpe.data.store import PaperStore
     from rpe.llm.client import LLMClient
+    from rpe.resources import Resources
     from rpe.ui.report_view import render_report_button
     from tests.fakes import ScriptedLLM, make_papers_df
 
@@ -162,9 +153,9 @@ def test_pdf_option_adds_only_a_button(tmp_path):
 
 
 def test_pdf_reuses_displayed_comparison_without_llm(paper_store):
-    from rpe.agent.tools import Resources
     from rpe.config import Config
     from rpe.rag.compare import ComparisonResult
+    from rpe.resources import Resources
     from rpe.ui.report_view import make_report
 
     fake = ScriptedLLM(lambda m: "should not be called")

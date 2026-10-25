@@ -1,4 +1,4 @@
-"""Generate tests/output/sample_report.pdf from fake data (no LLM, no index needed).
+"""Generate docs/exemple_rapport_chat.pdf from fake data (no LLM, no index needed).
 
 Run: python scripts/make_sample_report.py
 """
@@ -11,7 +11,7 @@ from pathlib import Path
 from rpe.rag.compare import NOT_MENTIONED, PaperComparison
 from rpe.reports.pdf_report import build_pdf
 
-OUT = Path(__file__).resolve().parents[1] / "tests" / "output" / "sample_report.pdf"
+OUT = Path(__file__).resolve().parents[1] / "docs" / "exemple_rapport_chat.pdf"
 
 PAPERS = [
     PaperComparison(

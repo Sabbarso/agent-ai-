@@ -5,7 +5,6 @@ from rpe.pdf.parse import (
     canonical_section,
     chunk_sections,
     chunk_text,
-    extract_arxiv_references,
     split_sections,
 )
 
@@ -66,11 +65,6 @@ def test_chunk_sections_skips_references():
     secs = [Section("Method", "a " * 10), Section("References", "b " * 10)]
     chunks = chunk_sections("2301.00001", secs)
     assert [c.section for c in chunks] == ["Method"] and chunks[0].chunk_id == "2301.00001#0"
-
-
-def test_extract_arxiv_references():
-    refs = extract_arxiv_references(split_sections(PAPER_TEXT), self_id="2506.00006")
-    assert refs == ["2301.00001", "2405.00005"]
 
 
 def test_fetch_pdfs_polite_and_resumable(tmp_path):

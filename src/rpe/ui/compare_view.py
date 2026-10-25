@@ -7,8 +7,6 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 
-from rpe.agent.tools import Resources
-from rpe.kg.extract import cache_path, load_cache
 from rpe.pdf.reader import COMPARE_SECTIONS, pdf_excerpt
 from rpe.rag.compare import (
     NOT_MENTIONED,
@@ -20,6 +18,7 @@ from rpe.rag.compare import (
     comparison_frame,
     comparison_markdown,
 )
+from rpe.resources import Resources
 
 NOTE = (
     "Comparaison basée sur les résumés (et le texte complet lorsqu'il est disponible). "
@@ -42,7 +41,6 @@ def build_comparison(
         citations,
         res.papers,
         res.llm,
-        extractions=load_cache(cache_path(cfg, res.dev)),
         pdf_text=pdf_text,
         cache_dir=cfg.path(cfg.compare.cache_dir),
         max_papers=cfg.compare.max_papers,

@@ -129,15 +129,13 @@ def test_chroma_store_roundtrip(tmp_path, papers_df, numpy_store):
 
 
 def test_parquet_roundtrip_list_columns(tmp_path, papers_df):
-    """List columns come back from Parquet as numpy arrays: metadata/graph must cope."""
+    """List columns come back from Parquet as numpy arrays: metadata/store must cope."""
     import pandas as pd
-
-    from rpe.kg.build_graph import build_graph
-    from rpe.kg.normalize import EntityNormalizer
 
     papers_df.to_parquet(tmp_path / "p.parquet", index=False)
     df = pd.read_parquet(tmp_path / "p.parquet")
     meta = paper_metadata(df.to_dict("records")[1])
     assert meta["cat_cs.LG"] is True
-    g = build_graph(df, {}, EntityNormalizer())
-    assert g.count_by_type()["Author"] >= 3
+    from rpe.data.store import PaperStore
+
+    assert PaperStore(df).get("2302.00002")["categories"] == ["cs.CL", "cs.LG"]

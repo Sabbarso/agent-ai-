@@ -36,20 +36,19 @@ class IndexConfig(BaseModel):
     dir: str = "data/index"
 
 
-class ExtractionConfig(BaseModel):
-    max_papers: int = 2000
-    batch_size: int = 10
-    cache_path: str = "data/processed/extractions.jsonl"
-
-
 class RetrievalConfig(BaseModel):
     top_k: int = 10
     rrf_k: int = 60
     candidates: int = 100
+    rag_top_k: int = 5
+
+
+class UIConfig(BaseModel):
+    conversations_dir: str = "data/conversations"
 
 
 class CompareConfig(BaseModel):
-    max_papers: int = 8
+    max_papers: int = 5
     cache_dir: str = "data/cache/compare"
     pdf_chars: int = 3000
 
@@ -65,51 +64,6 @@ class LLMConfig(BaseModel):
     cache_dir: str = "data/cache/llm"
 
 
-class TopicsConfig(BaseModel):
-    n_neighbors: int = 15
-    n_components: int = 5
-    min_cluster_size: int = 40
-    min_samples: int = 10
-    dev_min_cluster_size: int = 8
-    label_with_llm: bool = True
-
-
-class TrendsConfig(BaseModel):
-    window_months: int = 6
-    min_volume: int = 20
-    dev_min_volume: int = 5
-    emerging_growth: float = 0.5
-    declining_growth: float = -0.3
-    drop_last_month: bool = True
-
-
-class GraphConfig(BaseModel):
-    path: str = "data/graph/kg.graphml"
-    aliases_path: str = "data/processed/aliases.yaml"
-    fuzzy_threshold: float = 0.92
-    max_coauthors_per_paper: int = 30
-
-
-class AgentConfig(BaseModel):
-    max_iterations: int = 6
-    sota_max_papers: int = 25
-    sota_min_papers: int = 8
-    sota_max_iterations: int = 2
-
-
-class GapsConfig(BaseModel):
-    min_task_papers: int = 8
-    min_method_papers: int = 8
-    max_cooccurrence: int = 1
-    top_n: int = 10
-
-
-class DigestConfig(BaseModel):
-    categories: list[str] = Field(default_factory=lambda: ["cs.CL", "cs.AI", "cs.LG"])
-    max_results: int = 50
-    output_dir: str = "data/digests"
-
-
 class PdfConfig(BaseModel):
     max_pdfs: int = 300
     delay_seconds: float = 3.0
@@ -119,29 +73,17 @@ class PdfConfig(BaseModel):
     demo_queries: list[str] = Field(default_factory=list)
 
 
-class EvalConfig(BaseModel):
-    datasets_dir: str = "src/rpe/eval/datasets"
-    report_path: str = "eval/report.md"
-
-
 class Config(BaseModel):
     """Typed view of `config.yaml`; relative paths are resolved against `root`."""
 
     data: DataConfig = Field(default_factory=DataConfig)
     embeddings: EmbeddingsConfig = Field(default_factory=EmbeddingsConfig)
     index: IndexConfig = Field(default_factory=IndexConfig)
-    extraction: ExtractionConfig = Field(default_factory=ExtractionConfig)
     retrieval: RetrievalConfig = Field(default_factory=RetrievalConfig)
+    ui: UIConfig = Field(default_factory=UIConfig)
     compare: CompareConfig = Field(default_factory=CompareConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
-    topics: TopicsConfig = Field(default_factory=TopicsConfig)
-    trends: TrendsConfig = Field(default_factory=TrendsConfig)
-    graph: GraphConfig = Field(default_factory=GraphConfig)
-    agent: AgentConfig = Field(default_factory=AgentConfig)
-    gaps: GapsConfig = Field(default_factory=GapsConfig)
-    digest: DigestConfig = Field(default_factory=DigestConfig)
     pdfs: PdfConfig = Field(default_factory=PdfConfig)
-    eval: EvalConfig = Field(default_factory=EvalConfig)
     root: Path = PROJECT_ROOT
 
     def path(self, rel: str | Path) -> Path:

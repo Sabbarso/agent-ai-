@@ -8,10 +8,10 @@ from typing import Any, TypeVar
 
 import streamlit as st
 
-from rpe.agent.tools import Resources
 from rpe.config import get_config
 from rpe.llm.client import LLMClient, get_llm
 from rpe.rag.citations import ARXIV_ID_PATTERN
+from rpe.resources import Resources
 
 T = TypeVar("T")
 _CITE_RE = re.compile(rf"\[arXiv:\s*({ARXIV_ID_PATTERN})((?:\s*§[^\],]+)?)\]")
@@ -34,12 +34,12 @@ BUILD_HINTS = {
 }
 USER_AVATAR = ":material/person:"
 ASSISTANT_AVATAR = ":material/smart_toy:"
-CHAT_PAGE = "pages/2_chat.py"
+CHAT_PAGE = "pages/chat.py"
 
 
 def open_rag_chat(question: str | None = None, paper_id: str | None = None) -> None:
-    """Go to the Chat RAG page, scoped to one paper and/or with a question to answer."""
-    st.session_state["chat_history"] = []
+    """Go to the Chat RAG page (new conversation), scoped to one paper and/or a question."""
+    st.session_state["conv"] = None
     st.session_state["rag_scope_kind"] = "Un papier" if paper_id else "Corpus"
     if paper_id:
         st.session_state["rag_paper_id"] = paper_id
@@ -63,31 +63,12 @@ def default_dev_mode() -> bool:
 
 
 def setup_page(title: str) -> Resources:
-    """Common page header + sidebar (dev toggle, LLM status); returns the resources."""
+    """Common page header; the corpus (full or --dev) is chosen automatically, silently."""
     st.markdown(CSS, unsafe_allow_html=True)
     st.title(title)
-    # Widget state is reset when switching pages: keep the mode in a plain session key.
     if "dev_mode" not in st.session_state:
         st.session_state["dev_mode"] = default_dev_mode()
-
-    def _sync() -> None:
-        st.session_state["dev_mode"] = st.session_state["_dev_toggle"]
-
-    with st.sidebar:
-        dev = st.toggle(
-            "Mode --dev (petit échantillon)",
-            value=st.session_state["dev_mode"],
-            key="_dev_toggle",
-            on_change=_sync,
-        )
-        if dev and not full_index_ready():
-            st.caption("Index complet pas encore construit : mode --dev activé automatiquement.")
-        llm = get_resources(dev).llm
-        if llm is None:
-            st.warning("LLM non configuré (.env) : fonctions génératives désactivées.")
-        else:
-            st.caption(f"LLM : `{llm.model}`")
-    return get_resources(dev)
+    return get_resources(st.session_state["dev_mode"])
 
 
 def require(res: Resources, attr: str) -> Any:
@@ -98,8 +79,6 @@ def require(res: Resources, attr: str) -> Any:
         hint = BUILD_HINTS.get(attr, "")
         suffix = " --dev" if res.dev else ""
         st.error(f"**Ressource non disponible** : {exc}")
-        if not res.dev and (res.cfg.index_dir(True) / "bm25.pkl").exists():
-            st.info("Les artefacts --dev existent : activer « Mode --dev » dans la barre latérale.")
         if hint:
             st.code(" && ".join(part + suffix for part in hint.split(" && ")), language="bash")
         st.stop()

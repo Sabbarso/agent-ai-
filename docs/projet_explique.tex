@@ -1,0 +1,839 @@
+\documentclass[11pt,a4paper]{article}
+
+% ---------------------------------------------------------------- paquets
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{lmodern}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage[most]{tcolorbox}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,shapes.geometric,fit,calc}
+
+\hypersetup{colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!60!black}
+\setlength{\parskip}{0.45em}
+\setlength{\parindent}{0pt}
+\renewcommand{\arraystretch}{1.25}
+
+\definecolor{bleunuit}{HTML}{1F4E79}
+\definecolor{donnees}{HTML}{DBEAFE}
+\definecolor{stockage}{HTML}{FEF9C3}
+\definecolor{traitement}{HTML}{E0F2E9}
+\definecolor{llm}{HTML}{FDE9D9}
+\definecolor{interface}{HTML}{EDE9FE}
+
+\newtcolorbox{analogie}{colback=blue!4,colframe=bleunuit,fonttitle=\bfseries,
+  title={Analogie},left=6pt,right=6pt,top=4pt,bottom=4pt}
+\newtcolorbox{exemple}[1][]{colback=green!4,colframe=green!40!black,fonttitle=\bfseries,
+  title={Exemple#1},left=6pt,right=6pt,top=4pt,bottom=4pt}
+\newtcolorbox{attention}{colback=orange!6,colframe=orange!70!black,fonttitle=\bfseries,
+  title={À retenir},left=6pt,right=6pt,top=4pt,bottom=4pt}
+
+\lstset{basicstyle=\ttfamily\small,breaklines=true,columns=fullflexible,
+  frame=single,backgroundcolor=\color{gray!6},rulecolor=\color{gray!40},
+  xleftmargin=4pt,xrightmargin=4pt}
+
+\tikzset{
+  boite/.style={draw=gray!70,rounded corners=3pt,align=center,font=\small,
+    minimum height=1.1cm,text width=2.6cm,inner sep=4pt},
+  fleche/.style={-{Stealth[length=2.5mm]},thick,gray!80!black},
+  pointille/.style={-{Stealth[length=2.5mm]},thick,dashed,gray!70}
+}
+
+\newcommand{\code}[1]{\texttt{#1}}
+
+\title{\textbf{Research Paper Explorer}\\[0.4em]
+\large Le projet expliqué simplement, pas à pas}
+\author{Projet du module \emph{Generative AI} --- ENSIAS}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Ce document explique, sans prérequis, ce que fait le projet \emph{Research Paper Explorer},
+les notions d'intelligence artificielle sur lesquelles il repose, les données utilisées,
+l'architecture du code, les raisons de chaque choix technique, les protections contre les
+erreurs de l'IA, les limites du travail et les questions qu'un jury peut poser. Chaque notion
+est accompagnée d'une analogie de la vie courante et, quand c'est utile, d'un exemple
+concret tiré du projet.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+% ======================================================================
+\section{Le projet en bref}
+% ======================================================================
+
+\subsection{Le problème}
+
+Quand on commence un sujet de recherche en informatique, on se heurte à deux difficultés.
+
+\begin{enumerate}
+  \item \textbf{Le volume.} Rien que dans la catégorie arXiv \og Calcul et langage \fg{}
+  (\code{cs.CL}, le traitement automatique des langues), plus de 81\,000 articles ont été
+  publiés depuis janvier 2023. Personne ne peut tout lire, ni même tout parcourir.
+  \item \textbf{La fiabilité des assistants IA.} Si l'on demande à un chatbot généraliste
+  \og quels articles parlent de tel sujet ? \fg{}, il peut répondre avec assurance\ldots{}
+  en inventant des titres et des références qui n'existent pas. C'est ce qu'on appelle une
+  \emph{hallucination}.
+\end{enumerate}
+
+\subsection{L'objectif}
+
+\emph{Research Paper Explorer} est un assistant de recherche bibliographique qui combine
+un moteur de recherche et un modèle de langage, avec une règle stricte : \textbf{chaque
+affirmation de la réponse doit citer un article arXiv réel, présent dans les documents
+réellement retrouvés}, et cette citation est vérifiée automatiquement par le programme.
+Si les documents ne suffisent pas, l'assistant répond \og Je ne sais pas \fg{} plutôt que
+d'inventer.
+
+\subsection{Ce que l'utilisatrice peut faire}
+
+L'application web (Streamlit) s'ouvre directement sur la page \textbf{Chat}.
+
+\begin{itemize}[leftmargin=1.2em]
+  \item \textbf{Poser une question} en langage naturel, sur tout le corpus ou sur un seul
+  article, et obtenir une réponse en français ou en anglais avec des citations
+  \code{[arXiv:ID]} cliquables vers \url{https://arxiv.org}.
+  \item \textbf{Voir le contexte récupéré} : les articles exacts que l'IA a eus sous les
+  yeux pour répondre.
+  \item \textbf{Comparer les articles cités} : un tableau (méthode, jeux de données,
+  résultats, limites, pertinence), des onglets de lecture et une synthèse comparative,
+  exportables en Markdown ou CSV.
+  \item \textbf{Générer un rapport PDF} de la réponse et de la comparaison.
+  \item \textbf{Retrouver ses conversations} : elles sont enregistrées et listées dans la
+  barre latérale ; on peut en ouvrir n'importe laquelle, la télécharger ou la supprimer.
+  \item \textbf{Rechercher} des articles sur la page \textbf{Recherche}, avec des filtres
+  (années, catégories, conférence, code disponible, article accepté), puis envoyer un
+  résultat au Chat avec le bouton \og Interroger avec le RAG \fg{}.
+\end{itemize}
+
+\begin{exemple}[ : un parcours typique]
+L'utilisatrice tape : \emph{How can retrieval reduce hallucinations in LLMs?}
+
+\begin{enumerate}[nosep]
+  \item Le programme cherche les 5 articles les plus pertinents parmi 20\,000.
+  \item Le modèle de langage rédige une réponse en s'appuyant uniquement sur ces 5 articles,
+  par exemple : \og Combiner un générateur avec des récupérateurs comme BM25 ou DPR réduit
+  les hallucinations [arXiv:2506.12483]. \fg{}
+  \item Le programme vérifie que \code{2506.12483} fait bien partie des 5 articles. Sinon,
+  la citation est supprimée.
+  \item Sous la réponse s'affiche la comparaison des articles cités, puis le bouton
+  \og Générer le rapport PDF \fg{}.
+\end{enumerate}
+\end{exemple}
+
+\subsection{Le projet en chiffres}
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Élément & Valeur \\
+\midrule
+Lignes lues dans le fichier arXiv & 3\,215\,335 \\
+Articles \code{cs.CL} publiés depuis 2023 & 81\,503 \\
+Articles conservés dans le corpus & 20\,000 (1\,000 en mode de développement) \\
+Code & 38 modules Python, environ 4\,200 lignes \\
+Tests automatisés & 114 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% ======================================================================
+\section{Les notions de base, expliquées simplement}
+% ======================================================================
+
+\subsection{Intelligence artificielle générative et LLM}
+
+Un \textbf{LLM} (\emph{Large Language Model}, grand modèle de langage) est un programme
+entraîné sur d'énormes quantités de texte pour prédire le mot suivant d'une phrase. À force
+de prédire le mot suivant, il sait rédiger des paragraphes entiers, résumer, traduire ou
+répondre à des questions. C'est de l'IA \emph{générative} : elle produit du texte nouveau.
+
+\begin{analogie}
+Un LLM ressemble à une personne qui a lu une bibliothèque entière mais qui répond de
+mémoire, sans pouvoir rouvrir les livres. Elle s'exprime très bien, mais quand sa mémoire
+est floue, elle peut \og combler les trous \fg{} avec quelque chose de plausible mais faux.
+\end{analogie}
+
+Dans le projet, le LLM par défaut est \code{qwen2.5:3b} (3 milliards de paramètres), exécuté
+localement grâce au logiciel \textbf{Ollama}. On peut le remplacer par un modèle hébergé
+(Groq, Gemini, OpenAI) en modifiant seulement le fichier \code{.env}.
+
+\textbf{Le prompt} est le texte envoyé au LLM : les consignes et la question. Tous les
+prompts du projet sont rangés dans un seul fichier, \code{src/rpe/llm/prompts.py}.
+
+\subsection{Les hallucinations}
+
+Une hallucination est une réponse fausse présentée avec assurance : une référence inventée,
+un chiffre qui n'apparaît nulle part, un résultat attribué au mauvais article. Le projet est
+conçu pour les empêcher ou les détecter (section~\ref{sec:gardefous}).
+
+\subsection{Les embeddings (plongements sémantiques)}
+
+Un \textbf{embedding} transforme un texte en une liste de nombres (un \emph{vecteur}). Dans
+le projet, chaque article (\og titre. résumé \fg{}) devient un vecteur de 384 nombres. Deux
+textes qui parlent de la même chose ont des vecteurs proches, même s'ils n'emploient pas les
+mêmes mots.
+
+\begin{analogie}
+Imaginez une immense carte où chaque article est un point. Les articles sur la traduction
+automatique sont regroupés dans un quartier, ceux sur la reconnaissance de la parole dans un
+autre. Un embedding, c'est l'adresse GPS d'un texte sur cette carte. Chercher des articles
+proches d'une question, c'est chercher les points les plus proches de l'adresse de la
+question.
+\end{analogie}
+
+La proximité se mesure avec la \textbf{similarité cosinus} : plus elle est proche de 1, plus
+les deux textes ont un sens voisin.
+
+\begin{exemple}
+\og reduce hallucinations \fg{} et \og improve factuality \fg{} n'ont aucun mot en commun,
+mais leurs embeddings sont proches : une recherche par embeddings les rapproche.
+\end{exemple}
+
+\subsection{La base vectorielle}
+
+Une \textbf{base vectorielle} (ici \textbf{ChromaDB}) stocke les vecteurs de tous les
+articles et sait retrouver très vite les plus proches d'un vecteur donné. Elle stocke aussi
+des informations à côté de chaque vecteur (année, conférence, code disponible\ldots), ce qui
+permet de filtrer.
+
+\subsection{BM25 : la recherche par mots-clés}
+
+\textbf{BM25} est une méthode classique de recherche (celle des moteurs de recherche depuis
+les années 1990). Elle donne un score à chaque document selon les mots de la requête qu'il
+contient, en accordant plus d'importance aux mots \emph{rares} (un mot présent partout,
+comme \og model \fg{}, ne dit pas grand-chose).
+
+\begin{analogie}
+BM25, c'est l'index à la fin d'un livre : on cherche le mot exact \og SQuAD \fg{} et on
+trouve les pages qui le contiennent. Les embeddings, c'est un bibliothécaire qui comprend
+ce que vous voulez dire. Le premier est imbattable pour les noms propres et les sigles, le
+second pour les idées.
+\end{analogie}
+
+\subsection{La recherche hybride et la fusion RRF}
+
+Le projet utilise \textbf{les deux} moteurs. Chacun propose 100 candidats, puis on les
+fusionne avec la \textbf{Reciprocal Rank Fusion} (RRF) :
+\[
+\text{score}(d) = \sum_{\text{moteurs}} \frac{1}{60 + \text{rang de } d \text{ dans ce moteur}}
+\]
+
+\begin{exemple}[ : calcul de la fusion]
+L'article A est 1\textsuperscript{er} pour BM25 et 3\textsuperscript{e} pour les
+embeddings : $\frac{1}{61}+\frac{1}{63}\approx 0{,}0323$.
+L'article B est 1\textsuperscript{er} pour les embeddings mais absent de BM25 :
+$\frac{1}{61}\approx 0{,}0164$.
+A passe devant B : un article bien classé par les deux moteurs est récompensé.
+\end{exemple}
+
+Après la fusion, on garde les \textbf{5 meilleurs articles} pour la réponse du Chat
+(paramètre \code{rag\_top\_k} de \code{config.yaml}).
+
+\subsection{Le RAG (Retrieval-Augmented Generation)}
+
+Le \textbf{RAG}, ou \og génération augmentée par la recherche \fg{}, consiste à
+\textbf{chercher d'abord} les documents pertinents, puis à demander au LLM de
+\textbf{répondre uniquement à partir de ces documents}, en les citant.
+
+\begin{analogie}
+Sans RAG, l'étudiant passe un examen à livre fermé : il répond de mémoire. Avec le RAG, il
+passe un examen à livre ouvert, mais on ne lui donne que 5 pages précises, et il doit
+indiquer pour chaque phrase la page d'où elle vient. Le correcteur (le programme) vérifie
+ensuite que chaque numéro de page cité existe bien dans les 5 pages fournies.
+\end{analogie}
+
+\subsection{Les sorties structurées (JSON et Pydantic)}
+
+Parfois, on ne veut pas un paragraphe mais des \textbf{champs précis} : la méthode, les jeux
+de données, les résultats\ldots{} On demande alors au LLM un objet \textbf{JSON} (un format
+texte structuré), et la bibliothèque \textbf{Pydantic} vérifie qu'il a la bonne forme. Si le
+JSON est invalide, le programme renvoie l'erreur au LLM et lui demande de corriger.
+
+\begin{analogie}
+C'est un formulaire administratif : au lieu d'une lettre libre, on impose des cases à
+remplir. Pydantic est l'agent au guichet qui refuse le formulaire s'il manque une case ou si
+une date est écrite n'importe comment.
+\end{analogie}
+
+\subsection{Notions du cahier des charges qui ne sont plus dans la version livrée}
+
+Le cahier des charges initial prévoyait aussi des modules d'analyse. Ils ont été développés
+et testés pendant le projet, puis \textbf{retirés de la version livrée} pour la centrer sur
+la recherche et le RAG. Ils restent dans l'historique Git. Ces notions peuvent tout de même
+être demandées par le jury.
+
+\paragraph{Le graphe de connaissances et le GraphRAG.}
+Un \textbf{graphe de connaissances} relie des entités par des relations : un article
+\emph{utilise} le jeu de données SQuAD, \emph{traite} la tâche \og traduction
+automatique \fg{}, \emph{est écrit par} tel auteur. Le \textbf{GraphRAG} interroge ce graphe
+pour répondre à des questions du type \og Quels articles utilisent SQuAD ? \fg{}, puis
+rédige la réponse comme un RAG.
+\begin{analogie}
+Le RAG classique cherche des paragraphes qui ressemblent à la question. Le GraphRAG consulte
+un arbre généalogique des connaissances : il suit les liens \og utilise \fg{},
+\og évalué sur \fg{}, \og écrit par \fg{} pour trouver la réponse exacte.
+\end{analogie}
+
+\paragraph{Le topic modeling (BERTopic).}
+Le \textbf{topic modeling} regroupe automatiquement des milliers de résumés en
+\emph{thèmes}. BERTopic utilise les embeddings : UMAP réduit les vecteurs à quelques
+dimensions, HDBSCAN forme des groupes de points denses, et chaque groupe reçoit un nom à
+partir de ses mots-clés. On peut ensuite suivre l'évolution d'un thème mois par mois.
+\begin{analogie}
+C'est trier une pile de 20\,000 lettres sans les lire une par une, en formant des tas selon
+leur sujet, puis en collant une étiquette sur chaque tas.
+\end{analogie}
+
+\paragraph{L'agent.}
+Un \textbf{agent} est un LLM qui ne se contente pas de répondre : il \emph{choisit des
+outils} (chercher des articles, interroger le graphe, lire un PDF\ldots), observe le
+résultat, puis décide de l'étape suivante, jusqu'à pouvoir répondre. Cette boucle
+\og réfléchir, agir, observer \fg{} s'appelle \textbf{ReAct}.
+\begin{analogie}
+Un agent est un stagiaire à qui l'on donne une boîte à outils et une mission : il décide
+lui-même de chercher dans la bibliothèque, puis de consulter un annuaire, puis de rédiger.
+\end{analogie}
+
+\paragraph{LangGraph.}
+\textbf{LangGraph} est une bibliothèque qui décrit un agent comme une \textbf{machine à
+états} : des étapes (\og décider \fg{}, \og agir \fg{}, \og conclure \fg{}) reliées par des
+flèches conditionnelles, avec un nombre maximal de tours pour éviter les boucles infinies.
+
+% ======================================================================
+\section{Le dataset arXiv}
+% ======================================================================
+
+\subsection{La source}
+
+\textbf{arXiv} est le site où les chercheurs déposent leurs articles en accès libre.
+L'université Cornell publie sur Kaggle un fichier qui contient les \textbf{métadonnées} de
+tous les articles (titre, auteurs, résumé, catégories, dates\ldots) :
+\url{https://www.kaggle.com/datasets/Cornell-University/arxiv}. C'est la \textbf{source de
+données unique} du projet. Le fichier n'est jamais téléchargé automatiquement : il est
+placé à la main dans \code{data/raw/arxiv-metadata-oai-snapshot.json}.
+
+\subsection{Le format : JSON Lines}
+
+Le fichier fait environ \textbf{5,6 Go}. Il est au format \textbf{JSON Lines} : chaque ligne
+est un objet JSON complet qui décrit un article. Cela permet de le lire \textbf{ligne par
+ligne} (en \emph{streaming}), sans jamais le charger entièrement en mémoire.
+
+\begin{analogie}
+Plutôt que de soulever un annuaire de 5 kilos d'un coup, on tourne les pages une à une, on
+garde les fiches intéressantes et on oublie les autres.
+\end{analogie}
+
+\subsection{Un enregistrement expliqué}
+
+\begin{lstlisting}
+{"id": "0704.0001",
+ "submitter": "Pavel Nadolsky",
+ "authors": "C. Bal\'azs, E. L. Berger, P. M. Nadolsky, C.-P. Yuan",
+ "title": "Calculation of prompt diphoton production cross sections ...",
+ "comments": "37 pages, 15 figures; published version",
+ "journal-ref": "Phys.Rev.D76:013009,2007",
+ "doi": "10.1103/PhysRevD.76.013009",
+ "categories": "hep-ph",
+ "abstract": "  A fully differential calculation in perturbative ...",
+ "versions": [{"version": "v1", "created": "Mon, 2 Apr 2007 19:18:42 GMT"}],
+ "update_date": "2008-11-26",
+ "authors_parsed": [["Balazs", "C.", ""], ["Berger", "E. L.", ""]]}
+\end{lstlisting}
+
+\begin{longtable}{>{\raggedright\arraybackslash}p{3.1cm}>{\raggedright\arraybackslash}p{11.8cm}}
+\toprule
+Champ & Signification et usage dans le projet \\
+\midrule
+\endhead
+\code{id} & Identifiant arXiv (\code{0704.0001}, ou \code{2503.10677} pour les articles
+récents). C'est lui qui apparaît dans les citations \code{[arXiv:ID]}. \\
+\code{authors} & Auteurs en texte brut, avec parfois des accents écrits en LaTeX
+(\code{Bal\textbackslash'azs}). \\
+\code{authors\_parsed} & Les mêmes auteurs déjà découpés en [nom, prénom, suffixe] : le
+projet les utilise de préférence. \\
+\code{title}, \code{abstract} & Titre et résumé, avec des retours à la ligne et des espaces
+multiples à nettoyer. Ce sont les textes que l'on indexe. \\
+\code{categories} & Catégories séparées par des espaces, par exemple
+\code{"cs.CL cs.LG"}. La première est la catégorie principale. \\
+\code{comments} & Commentaire libre de l'auteur : \og 12 pages, 3 figures \fg{},
+\og Accepted at ACL 2024 \fg{}, lien GitHub\ldots{} Source principale de l'enrichissement. \\
+\code{journal-ref}, \code{doi} & Référence de publication et identifiant DOI, souvent vides
+(\code{null}). \\
+\code{versions} & Historique des versions. La date de la \textbf{première} version
+(\code{versions[0].created}) est la vraie date de publication. \\
+\code{update\_date} & Date de la dernière mise à jour : \textbf{pas} la date de
+publication. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Le filtrage}
+
+\begin{enumerate}
+  \item \textbf{Pré-filtre rapide} : une ligne qui ne contient même pas les caractères
+  \code{cs.CL} est ignorée \emph{sans être décodée}. Cela élimine 96\,\% des lignes
+  (3\,092\,613 sur 3\,215\,335) et rend la lecture très rapide (environ 1 min 15 s).
+  \item \textbf{Catégorie} : on garde un article si \emph{au moins une} de ses catégories
+  est \code{cs.CL} (122\,720 articles).
+  \item \textbf{Date} : publication à partir du 1\textsuperscript{er} janvier 2023
+  (81\,503 articles).
+  \item \textbf{Échantillon} : 20\,000 articles tirés au hasard de façon
+  \textbf{reproductible} (graine 42) par \emph{échantillonnage par réservoir}, qui tire au
+  sort en une seule lecture et avec une mémoire limitée.
+\end{enumerate}
+
+Répartition obtenue : 3\,304 articles en 2023, 5\,063 en 2024, 5\,916 en 2025 et 5\,717
+en 2026. Tous ces paramètres se changent dans \code{config.yaml}.
+
+\subsection{Le nettoyage}
+
+\begin{itemize}
+  \item suppression des retours à la ligne et des espaces multiples dans les titres et
+  résumés ;
+  \item conversion des accents LaTeX en vrais caractères (\code{Bal\textbackslash'azs}
+  devient \og Balázs \fg{}) ;
+  \item reconstruction des noms d'auteurs \og Prénom Nom \fg{} depuis
+  \code{authors\_parsed} ;
+  \item lecture de la date de publication au format RFC~2822
+  (\og Mon, 2 Apr 2007 19:18:42 GMT \fg{}) ;
+  \item écriture du résultat au format \textbf{Parquet} dans
+  \code{data/processed/papers.parquet}.
+\end{itemize}
+
+\subsection{L'enrichissement}
+
+Le fichier \code{src/rpe/data/enrich\_comments.py} lit les champs \code{comments},
+\code{journal-ref} et \code{abstract} avec des \textbf{expressions régulières} (des motifs
+de recherche dans le texte) et ajoute des colonnes utiles pour filtrer.
+
+\begin{center}
+\begin{tabular}{>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{5.6cm}>{\raggedright\arraybackslash}p{6.2cm}}
+\toprule
+Colonne & Exemple de texte & Résultat \\
+\midrule
+\code{venue}, \code{venue\_year} & \og Accepted at ACL 2024 \fg{} & ACL, 2024 \\
+\code{venue} & \og Findings of EMNLP 2023 \fg{} & EMNLP Findings \\
+\code{is\_accepted} & \og Under review at ICLR 2025 \fg{} & venue ICLR, mais non accepté \\
+\code{github\_url}, \code{has\_code} & \og Code: github.com/x/y \fg{} & lien GitHub, code
+disponible \\
+\code{n\_pages}, \code{n\_figures} & \og 8+2 pages, 3 figures \fg{} & 10 pages, 3 figures \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+27 conférences et revues sont reconnues (ACL, EMNLP, NAACL, NeurIPS, ICML, ICLR\ldots). Sur
+le corpus : 16,8\,\% des articles ont un lien vers du code, 36,3\,\% sont acceptés, 28,7\,\%
+ont une venue identifiée.
+
+\subsection{Les limites du dataset}
+
+\begin{itemize}
+  \item Ce sont des \textbf{métadonnées} : on n'a que le résumé, pas l'article entier (sauf
+  pour les PDF téléchargés à part).
+  \item Les résumés sont en \textbf{anglais} ; les questions marchent mieux en anglais.
+  \item Le corpus est un \textbf{échantillon} de 20\,000 articles d'une seule catégorie :
+  un article pertinent peut ne pas y être.
+  \item Les commentaires sont libres : les règles ne couvrent pas toutes les formulations ni
+  toutes les conférences (FAccT ou WMT, par exemple, ne sont pas reconnues).
+  \item Le fichier est un \textbf{instantané} : il faut le retélécharger pour avoir les
+  derniers articles.
+\end{itemize}
+
+% ======================================================================
+\section{L'architecture du projet}
+% ======================================================================
+
+\subsection{Vue d'ensemble}
+
+\begin{center}
+\begin{tikzpicture}[node distance=0.55cm and 0.75cm]
+  \node[boite,fill=donnees] (raw) {Dump arXiv\\JSONL 5,6 Go};
+  \node[boite,fill=traitement,below=of raw] (prep) {Préparation\\filtre, nettoyage};
+  \node[boite,fill=stockage,below=of prep] (pq) {papers.parquet\\20\,000 articles};
+  \node[boite,fill=stockage,right=of raw] (chroma) {ChromaDB\\embeddings};
+  \node[boite,fill=stockage,right=of prep] (bm) {BM25\\mots-clés};
+  \node[boite,fill=stockage,right=of pq] (pdf) {PDF arXiv\\par section};
+  \node[boite,fill=traitement,right=of chroma] (hyb) {Recherche\\hybride RRF};
+  \node[boite,fill=llm,right=of bm] (rag) {RAG\\+ vérification};
+  \node[boite,fill=traitement,right=of pdf] (cmp) {Comparaison\\+ rapport PDF};
+  \node[boite,fill=interface,right=of rag,text width=2.3cm,minimum height=2.6cm] (ui)
+       {Streamlit\\Chat\\Recherche\\Historique};
+  \node[boite,fill=llm,above=0.5cm of ui,text width=2.3cm] (llm) {LLM\\Ollama, Groq\ldots};
+  \draw[fleche] (raw) -- (prep);
+  \draw[fleche] (prep) -- (pq);
+  \draw[fleche] (pq.east) -- (chroma.west);
+  \draw[fleche] (pq.east) -- (bm.west);
+  \draw[fleche] (chroma) -- (hyb);
+  \draw[fleche] (bm) -- (hyb);
+  \draw[fleche] (hyb) -- (rag);
+  \draw[pointille] (pdf) -- (rag);
+  \draw[fleche] (rag) -- (cmp);
+  \draw[fleche] (hyb.east) -- (ui);
+  \draw[fleche] (rag) -- (ui);
+  \draw[fleche] (cmp.east) -- (ui);
+  \draw[pointille] (llm) -- (rag);
+\end{tikzpicture}
+\end{center}
+
+\textbf{Légende} : en bleu les données brutes, en jaune les fichiers stockés sur disque, en
+vert les traitements, en orange ce qui fait appel au LLM, en violet l'interface.
+
+\begin{attention}
+Chaque étape produit des \textbf{fichiers} que l'étape suivante relit. On peut donc
+relancer une étape sans tout refaire, et reprendre un calcul interrompu. Un mode
+\code{--dev} travaille sur 1\,000 articles, dans des fichiers séparés, pour tester vite.
+\end{attention}
+
+\subsection{Le trajet d'une question}
+
+\begin{center}
+\begin{tikzpicture}[node distance=0.5cm and 0.6cm]
+  \node[boite,fill=interface] (q) {Question\\de l'utilisatrice};
+  \node[boite,fill=stockage,right=of q,yshift=0.8cm] (b) {BM25\\100 candidats};
+  \node[boite,fill=stockage,right=of q,yshift=-0.8cm] (d) {Embeddings\\100 candidats};
+  \node[boite,fill=traitement,right=of b,yshift=-0.8cm] (f) {Fusion RRF\\top 5};
+  \node[boite,fill=llm,below=1.3cm of f] (l) {LLM\\réponse citée};
+  \node[boite,fill=traitement,left=of l] (v) {Vérification\\des citations};
+  \node[boite,fill=interface,left=of v] (r) {Réponse +\\comparaison + PDF};
+  \draw[fleche] (q) -- (b);
+  \draw[fleche] (q) -- (d);
+  \draw[fleche] (b) -- (f);
+  \draw[fleche] (d) -- (f);
+  \draw[fleche] (f) -- node[right,font=\footnotesize]{contexte numéroté} (l);
+  \draw[fleche] (l) -- (v);
+  \draw[fleche] (v) -- (r);
+\end{tikzpicture}
+\end{center}
+
+\subsection{Les briques, une par une}
+
+\subsubsection{La configuration}
+\textbf{Rôle} : centraliser les réglages. \textbf{Fichiers} : \code{config.yaml} (catégories,
+dates, tailles, chemins, seuils), \code{.env} (adresse et nom du LLM, clé d'API, jamais
+publiée sur Git), \code{src/rpe/config.py} (lecture et vérification de ces réglages).
+\textbf{Exemple} : passer de \code{cs.CL} à \code{cs.*} dans \code{config.yaml} suffit à
+élargir le corpus à toute l'informatique.
+
+\subsubsection{La préparation des données}
+\textbf{Rôle} : transformer le fichier brut en un tableau propre. \textbf{Fichiers} :
+\code{data/load.py} (lecture ligne par ligne, comptage des lignes invalides),
+\code{data/clean.py} (filtres, nettoyage, échantillonnage), \code{data/enrich\_comments.py}
+(conférence, code, pages), \code{data/prepare.py} (enchaînement et statistiques),
+\code{data/store.py} (accès à un article par son identifiant).
+\textbf{Commande} : \code{python -m rpe.cli prepare-data}.
+
+\subsubsection{Les index et la recherche}
+\textbf{Rôle} : retrouver vite les bons articles. \textbf{Fichiers} : \code{index/embed.py}
+(calcul des embeddings par paquets de 2\,048 articles, sauvegardés au fur et à mesure),
+\code{index/vector\_store.py} (ChromaDB), \code{index/bm25.py} (BM25 et découpage des mots),
+\code{index/filters.py} (filtres année, catégorie, conférence, code), \code{index/hybrid.py}
+(fusion RRF et extrait le plus pertinent du résumé), \code{index/build.py} (construction).
+\textbf{Commandes} : \code{build-index}, puis
+\code{search "retrieval-augmented generation" --year-min 2024 --has-code}.
+
+\subsubsection{La couche LLM}
+\textbf{Rôle} : un point d'entrée unique vers le modèle de langage. \textbf{Fichiers} :
+\code{llm/client.py}, \code{llm/prompts.py}, \code{llm/schemas.py}.
+\textbf{Fonctionnement} : avant chaque appel, le client regarde dans un \textbf{cache}
+disque si la même question a déjà été posée (aucun appel en double). Sinon il appelle le
+LLM avec un délai maximal ; en cas d'erreur réseau, il réessaie après 2, 4, puis 8
+secondes. Pour une sortie structurée, il vérifie le JSON avec Pydantic et, s'il est faux,
+redemande une correction. Il compte les appels, les réussites du cache et les erreurs.
+
+\subsubsection{Le RAG et la vérification des citations}
+\textbf{Rôle} : répondre en citant. \textbf{Fichiers} : \code{rag/qa.py} et
+\code{rag/citations.py}. \textbf{Fonctionnement} : les 5 articles retenus sont numérotés
+dans le prompt (\og [1] arXiv:2503.10677 | titre (année, conférence) \fg{} suivi du
+résumé). Le LLM doit citer chaque affirmation ou répondre \code{INSUFFICIENT\_CONTEXT}.
+Ensuite, \code{validate\_citations()} retire toute citation absente de ces 5 articles. Si
+aucune citation valide ne reste, la réponse devient \og Je ne sais pas \fg{}.
+
+\subsubsection{La comparaison des articles cités}
+\textbf{Rôle} : décrire et comparer les articles cités. \textbf{Fichier} :
+\code{rag/compare.py}. \textbf{Fonctionnement} : pour chaque article cité (5 au maximum),
+on prend le texte du PDF s'il a été téléchargé, sinon le résumé. \textbf{Un seul appel}
+groupé au LLM extrait problème, méthode, jeux de données, métriques, résultats et limites ;
+le résultat est mis en cache par article. Une information absente devient
+\og Non mentionné dans le résumé \fg{}. La pertinence (élevée, moyenne, faible) se calcule
+sans LLM : c'est la part des mots de la question présents dans le titre et le résumé.
+Un second appel rédige une synthèse comparative de 4 à 6 phrases, elle aussi vérifiée.
+
+\subsubsection{Le texte intégral (PDF)}
+\textbf{Rôle} : aller au-delà du résumé. \textbf{Fichiers} : \code{pdf/download.py}
+(jusqu'à 300 PDF, 3 secondes entre deux requêtes pour respecter les serveurs d'arXiv),
+\code{pdf/parse.py} (extraction du texte et découpage en sections : Introduction, Method,
+Experiments, Results, Conclusion\ldots), \code{pdf/chunks.py} (passages de 1\,500 caractères
+avec chevauchement, indexés dans ChromaDB), \code{pdf/reader.py}. \textbf{Exemple} : dans
+le Chat, une question sur un seul article peut citer \code{[arXiv:ID \S Method]}.
+\textbf{Commandes} : \code{fetch-pdfs} puis \code{index-pdfs}.
+
+\subsubsection{Les rapports PDF}
+\textbf{Rôle} : produire un document partageable. \textbf{Fichiers} :
+\code{reports/pdf\_report.py} (mise en page avec ReportLab : page de titre, réponse avec
+liens cliquables, fiche par article, tableau comparatif en paysage, synthèse, références,
+pied de page) et \code{reports/chat\_report.py}. Le rapport réutilise la comparaison déjà
+affichée : aucun nouvel appel au LLM.
+
+\subsubsection{L'interface}
+\textbf{Rôle} : rendre tout cela utilisable sans ligne de commande. \textbf{Fichiers} :
+\code{app/streamlit\_app.py} (menu), \code{app/pages/chat.py}, \code{app/pages/search.py},
+\code{ui/common.py} (cartes d'articles, liens de citation), \code{ui/conversations.py}
+(historique : un fichier JSON par conversation dans \code{data/conversations/}),
+\code{ui/compare\_view.py}, \code{ui/report\_view.py}, et \code{resources.py} qui charge une
+seule fois les index et le LLM. \textbf{Commande} : \code{streamlit run app/streamlit\_app.py}.
+
+\subsubsection{La ligne de commande et les tests}
+\code{src/rpe/cli.py} propose six commandes : \code{prepare-data}, \code{build-index},
+\code{search}, \code{ask} (avec \code{--pdf} pour le rapport), \code{fetch-pdfs},
+\code{index-pdfs}. Le dossier \code{tests/} contient 114 tests automatisés qui utilisent un
+\og faux LLM \fg{} aux réponses prévues : ils sont rapides, gratuits et reproductibles.
+
+% ======================================================================
+\section{Pourquoi ces outils ?}
+% ======================================================================
+
+Pour chaque choix : la raison, l'alternative principale et l'inconvénient accepté.
+
+\begin{longtable}{>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{4.6cm}>{\raggedright\arraybackslash}p{3.6cm}>{\raggedright\arraybackslash}p{3.8cm}}
+\toprule
+Outil & Pourquoi lui & Alternative & Inconvénient \\
+\midrule
+\endhead
+Python 3.12 & Langage de référence de l'IA, toutes les bibliothèques existent &
+Java, JavaScript & Plus lent que du C, sans importance ici \\
+orjson & Décode le JSON plusieurs fois plus vite que le module standard, crucial pour
+3,2 millions de lignes & \code{json} standard, ujson & Une dépendance de plus \\
+pandas + Parquet & Tableaux faciles à manipuler ; Parquet est compressé, typé et rapide
+à relire & CSV, polars & Parquet n'est pas lisible dans un éditeur de texte \\
+bge-small-en-v1.5 (sentence-transformers) & Petit (384 dimensions), gratuit, local, très
+bon en recherche & Embeddings payants d'OpenAI, bge-large & Anglais seulement ; moins précis
+qu'un grand modèle \\
+ChromaDB & Base vectorielle persistante, simple, avec filtres sur les métadonnées, sans
+serveur & FAISS, Qdrant, pgvector & Moins performante à très grande échelle \\
+rank-bm25 & Implémentation simple et sûre de BM25 & bm25s, Elasticsearch & Un peu lent sur
+des millions de documents \\
+Fusion RRF ($k=60$) & Combine des classements sans avoir à comparer des scores d'échelles
+différentes ; standard et robuste & Moyenne pondérée des scores & Ignore l'écart de score
+entre deux rangs \\
+Client compatible OpenAI & Le même code parle à Ollama, Groq, Gemini ou OpenAI & SDK propre
+à chaque fournisseur, LangChain & Les fonctions propres à un fournisseur ne sont pas
+exploitées \\
+Ollama + qwen2.5:3b & Local, gratuit, sans clé, données privées & Groq, Gemini (hébergés) &
+Lent sur CPU (1 à 4 min), moins précis \\
+Pydantic & Vérifie automatiquement les sorties du LLM & Vérifications écrites à la main &
+Le LLM doit respecter un schéma \\
+PyMuPDF & Extraction de texte rapide et fiable & pdfplumber, GROBID & Ne reconnaît pas la
+structure logique : découpage par titres heuristique \\
+httpx & Téléchargement HTTP simple, déjà installé avec le client OpenAI & requests & Aucun \\
+ReportLab & PDF en Python, sans logiciel externe, avec accents (police DejaVuSans) &
+WeasyPrint, LaTeX & Mise en page plus verbeuse à coder \\
+Streamlit & Application web en Python pur, idéale pour un prototype & Gradio, React &
+Moins personnalisable qu'une vraie application web \\
+Typer & Ligne de commande lisible, générée à partir des fonctions & argparse, click &
+Aucun notable \\
+pytest + ruff & Tests et contrôle de qualité standards en Python & unittest, flake8 &
+Aucun notable \\
+\bottomrule
+\end{longtable}
+
+% ======================================================================
+\section{Les garde-fous contre les hallucinations}
+\label{sec:gardefous}
+% ======================================================================
+
+Le principe : \textbf{on ne croit jamais le LLM sur parole}, le programme vérifie.
+
+\begin{longtable}{>{\raggedright\arraybackslash}p{5.2cm}>{\raggedright\arraybackslash}p{9.6cm}}
+\toprule
+Risque & Garde-fou \\
+\midrule
+\endhead
+Citer un article inexistant ou absent du contexte & \code{validate\_citations()} retire
+toute citation \code{[arXiv:ID]} qui ne fait pas partie des 5 articles récupérés. \\
+Citer une section inventée (\code{\S 3.3}) & La section est retirée si elle n'existe pas
+dans le contexte ; l'identifiant valide est conservé. \\
+Répondre sans source & Si aucune citation valide ne reste, la réponse devient
+\og Je ne sais pas \fg{}. Le LLM peut aussi répondre \code{INSUFFICIENT\_CONTEXT}. \\
+Inventer un résultat chiffré dans la comparaison & Un résultat contenant un nombre absent du
+texte source est écarté. \\
+Inventer une information manquante & Les cases vides deviennent
+\og Non mentionné dans le résumé \fg{}. \\
+Références fausses dans le rapport & La liste des références est produite par le
+programme à partir des seuls articles cités et vérifiés, jamais par le LLM. \\
+JSON mal formé & Validation Pydantic, puis nouvelle demande au LLM avec le message
+d'erreur. \\
+Réponses instables & Température 0 (le LLM choisit toujours le mot le plus probable) et
+cache : la même question donne la même réponse. \\
+\bottomrule
+\end{longtable}
+
+\begin{attention}
+Ces garde-fous garantissent que \textbf{les citations existent dans le contexte}. Ils ne
+garantissent pas que chaque phrase résume parfaitement l'article cité : la lecture critique
+reste nécessaire. C'est pourquoi le contexte récupéré est toujours affiché.
+\end{attention}
+
+% ======================================================================
+\section{Limites et perspectives}
+% ======================================================================
+
+\subsection{Limites}
+\begin{itemize}
+  \item \textbf{Vitesse} : le LLM local de 3 milliards de paramètres répond en 1 à 4
+  minutes sur un ordinateur sans carte graphique.
+  \item \textbf{Qualité du LLM} : un petit modèle comprend moins bien les consignes ; il
+  produit parfois des citations mal placées, que la vérification retire.
+  \item \textbf{Couverture} : une seule catégorie, un échantillon de 20\,000 articles, des
+  résumés en anglais.
+  \item \textbf{Règles d'enrichissement} : certaines conférences et formulations ne sont
+  pas reconnues.
+  \item \textbf{PDF} : le découpage en sections repose sur les titres habituels et peut se
+  tromper sur une mise en page atypique.
+  \item \textbf{Évaluation} : la version livrée ne contient pas de mesure chiffrée de la
+  qualité de recherche ou des réponses.
+  \item \textbf{Périmètre} : les modules d'analyse du cahier des charges (thèmes, graphe,
+  agent, évaluation) ont été retirés de la version livrée.
+\end{itemize}
+
+\subsection{Perspectives}
+\begin{itemize}
+  \item Utiliser un LLM hébergé (Groq, Gemini) : réponses en quelques secondes, sans
+  changer le code.
+  \item Ajouter un \textbf{re-classement} (cross-encoder) après la fusion RRF pour
+  améliorer l'ordre des 5 articles retenus.
+  \item \textbf{Mesurer} la qualité : Recall@k, MRR, nDCG pour la recherche ; taux de
+  citations valides et fidélité pour les réponses, sur un jeu annoté à la main.
+  \item Réintégrer l'analyse du domaine : thèmes et tendances, graphe de connaissances
+  (GraphRAG), agent LangGraph.
+  \item Élargir le corpus à d'autres catégories et le mettre à jour automatiquement avec
+  l'API arXiv.
+\end{itemize}
+
+% ======================================================================
+\section{Questions probables du jury}
+% ======================================================================
+
+\newcommand{\question}[1]{\paragraph{Q : #1}\mbox{}\\}
+
+\question{Pourquoi ne pas simplement poser la question à ChatGPT ?}
+Parce qu'un LLM seul répond de mémoire et peut inventer des références. Ici, il répond
+uniquement à partir d'articles réellement retrouvés, et le programme vérifie chaque
+citation. On sait toujours d'où vient une information.
+
+\question{Qu'est-ce que le RAG, en une phrase ?}
+Chercher d'abord les bons documents, puis demander au LLM de répondre uniquement avec eux,
+en les citant.
+
+\question{Pourquoi deux moteurs de recherche ?}
+BM25 trouve les mots exacts (sigles, noms de jeux de données comme SQuAD) ; les embeddings
+trouvent le sens (synonymes, reformulations). Leur combinaison est meilleure que chacun
+seul, surtout sur des requêtes courtes et techniques.
+
+\question{Comment fonctionne la fusion RRF ?}
+Chaque article reçoit $\frac{1}{60+\text{rang}}$ pour chaque moteur, et on additionne. Un
+article bien classé par les deux moteurs passe devant un article très bien classé par un
+seul. On garde ensuite les 5 premiers.
+
+\question{Pourquoi garder 5 articles et pas plus ?}
+Plus d'articles allongent le prompt, ralentissent un petit LLM local et diluent
+l'information. Cinq articles suffisent pour une réponse ciblée. La valeur se règle dans
+\code{config.yaml}.
+
+\question{Comment êtes-vous sûres que les citations ne sont pas inventées ?}
+La fonction \code{validate\_citations()} compare chaque identifiant cité à la liste des
+articles récupérés et retire ceux qui n'y sont pas. Sans citation valide, la réponse devient
+\og Je ne sais pas \fg{}. Cela est vérifié par des tests automatisés.
+
+\question{Que se passe-t-il si la question sort du sujet du corpus ?}
+Les articles récupérés ne contiennent pas la réponse : le LLM doit répondre
+\code{INSUFFICIENT\_CONTEXT}, ou ses citations sont retirées, et l'application affiche
+\og Je ne sais pas \fg{}.
+
+\question{Pourquoi un modèle local plutôt qu'un modèle en ligne ?}
+Gratuit, sans clé d'API, et les données restent sur la machine. L'inconvénient est la
+lenteur. Le code est conçu pour changer de fournisseur en modifiant seulement le fichier
+\code{.env}.
+
+\question{Pourquoi seulement 20\,000 articles ?}
+Pour que les embeddings et les index se calculent en un temps raisonnable sur un ordinateur
+portable. Le tirage est reproductible (graine 42) et la taille se règle dans
+\code{config.yaml}.
+
+\question{Comment lisez-vous un fichier de 5,6 Go ?}
+Ligne par ligne, sans jamais le charger en entier. Un pré-filtre ignore 96\,\% des lignes
+sans même les décoder. La lecture complète prend environ une minute et quart.
+
+\question{Pourquoi la date de publication vient-elle de \code{versions} ?}
+Parce que \code{update\_date} est la date de la dernière modification, qui peut être des
+années après la publication. La première version donne la vraie date.
+
+\question{Comment détectez-vous la conférence d'un article ?}
+Avec des expressions régulières sur le commentaire de l'auteur et la référence de
+publication (\og Accepted at ACL 2024 \fg{}, \og To appear in NeurIPS'23 \fg{}), en
+repérant aussi les formulations négatives comme \og under review \fg{}.
+
+\question{Que fait la comparaison des articles ?}
+Pour les articles cités, elle extrait en un seul appel au LLM la méthode, les jeux de
+données, les résultats et les limites, puis rédige une synthèse. Ce qui n'est pas écrit
+dans le texte est marqué \og Non mentionné \fg{} et les chiffres absents du texte sont
+écartés.
+
+\question{Qu'est-ce qu'un embedding ?}
+Une liste de nombres qui représente le sens d'un texte. Deux textes de sens proche ont des
+listes proches, ce qui permet de chercher par le sens et non par les mots exacts.
+
+\question{Qu'est-ce que le GraphRAG et pourquoi n'est-il pas dans la version livrée ?}
+C'est un RAG qui interroge un graphe de connaissances (articles, tâches, méthodes, jeux de
+données reliés entre eux). Il a été développé et testé, puis retiré de la version livrée
+pour la concentrer sur la recherche et le RAG ; il reste dans l'historique Git.
+
+\question{Qu'est-ce qu'un agent, et LangGraph ?}
+Un agent est un LLM qui choisit lui-même des outils et des étapes pour accomplir une tâche.
+LangGraph décrit cet agent comme une machine à états avec un nombre maximal de tours. Comme
+le GraphRAG, l'agent a été retiré de la version livrée.
+
+\question{Comment avez-vous testé le projet ?}
+114 tests automatisés vérifient la lecture des données, l'enrichissement, la recherche, la
+fusion, les citations, la comparaison, le rapport PDF et l'interface. Ils utilisent un faux
+LLM aux réponses prévues, donc ils sont rapides et reproductibles. La qualité du code est
+contrôlée par ruff.
+
+\question{Quelle est la principale limite ?}
+La vitesse et la précision du petit LLM local. La solution la plus simple est d'utiliser un
+LLM hébergé, ce que le code permet sans modification.
+
+% ======================================================================
+\appendix
+\section{Commandes pour lancer le projet}
+% ======================================================================
+
+\begin{lstlisting}
+py -3.12 -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+pip install -e . --no-deps
+copy .env.example .env               (puis choisir le LLM)
+
+python -m rpe.cli prepare-data       (corpus ; --dev pour 1 000 articles)
+python -m rpe.cli build-index        (embeddings, ChromaDB, BM25)
+python -m rpe.cli fetch-pdfs         (optionnel : PDF arXiv)
+python -m rpe.cli index-pdfs
+streamlit run app/streamlit_app.py   (http://localhost:8501)
+
+python -m rpe.cli ask "How can retrieval reduce hallucinations in LLMs?" --lang fr --pdf rapport.pdf
+pytest
+ruff check .
+\end{lstlisting}
+
+\end{document}

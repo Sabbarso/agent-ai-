@@ -64,7 +64,7 @@ def retrieve_context(
     question: str,
     searcher: HybridSearcher,
     scope: str = "corpus",
-    top_k: int = 8,
+    top_k: int = 5,
     chunks: ChunkRetriever | None = None,
 ) -> list[ContextItem]:
     """Context items for the corpus (hybrid search) or a single paper (chunks or abstract)."""
@@ -122,7 +122,7 @@ def answer_question(
     searcher: HybridSearcher,
     llm: LLMClient,
     scope: str = "corpus",
-    top_k: int = 8,
+    top_k: int = 5,
     chunks: ChunkRetriever | None = None,
     lang: str = "en",
 ) -> RAGAnswer:

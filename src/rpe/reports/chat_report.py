@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from pathlib import Path
 
@@ -10,7 +10,6 @@ from pydantic import BaseModel, Field
 
 from rpe.data.store import PaperStore
 from rpe.llm.client import LLMClient
-from rpe.llm.schemas import PaperExtraction
 from rpe.rag.compare import ComparisonResult, add_synthesis, compare_papers
 from rpe.reports.pdf_report import build_pdf, report_filename
 
@@ -28,16 +27,13 @@ def build_chat_report(
     citations: Sequence[str],
     papers: PaperStore,
     llm: LLMClient | None,
-    extractions: Mapping[str, PaperExtraction] | None = None,
     pdf_text: Callable[[str], str | None] | None = None,
     cache_dir: Path | None = None,
-    max_papers: int = 8,
+    max_papers: int = 5,
     lang: str = "en",
 ) -> ChatReport:
     """Compare the CITED papers, write the synthesis, render the PDF (never fails on LLM errors)."""
-    result = compare_papers(
-        question, citations, papers, llm, extractions, pdf_text, cache_dir, max_papers
-    )
+    result = compare_papers(question, citations, papers, llm, pdf_text, cache_dir, max_papers)
     add_synthesis(result, llm, lang)
     return report_from_comparison(question, answer, result)
 
