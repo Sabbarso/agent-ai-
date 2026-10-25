@@ -189,17 +189,7 @@ pytest                  # 113 tests
 ruff check .            # qualité du code
 ```
 
-## Documentation
 
-- [docs/rapport_projet.pdf](docs/rapport_projet.pdf) : rapport complet (architecture,
-  outils, communication entre les composants, garde-fous, évaluation). Pour le régénérer :
-  `python scripts/make_project_report.py`.
-- [docs/exemple_rapport_chat.pdf](docs/exemple_rapport_chat.pdf) : exemple de rapport PDF
-  généré par le Chat. Pour le régénérer : `python scripts/make_sample_report.py`.
-- [AGENTS.md](AGENTS.md) et [PROMPTS_CODEX.md](PROMPTS_CODEX.md) : cahier des charges
-  initial et étapes du projet. Les modules d'analyse (topics, graphe de connaissances,
-  agent, évaluation) ont été retirés de la version livrée pour la centrer sur la recherche et
-  le RAG ; ils restent disponibles dans l'historique git.
 
 ## Limites
 
